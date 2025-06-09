@@ -20,12 +20,10 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-    - name: Create new user "rdpuser"
-      env:
-        PASSWORD: ${{ secrets.RDP_PASSWORD }}
+    - name: Create new user "irfan"
       run: |
-        net user rdpuser $Env:PASSWORD /add
-        net localgroup administrators rdpuser /add
+        net user irfan irfan786@ /add
+        net localgroup administrators irfan /add
 
     - name: Start Cloudflare Tunnel
       env:
@@ -39,8 +37,8 @@ jobs:
           Write-Host "===================="
           Write-Host "RDP Public Endpoint:"
           Write-Host $matches.Matches.Groups[0].Value
-          Write-Host "Username: rdpuser"
-          Write-Host "Password: (your secret)"
+          Write-Host "Username: irfan"
+          Write-Host "Password: irfan786@"
           Write-Host "===================="
         } else {
           Write-Host "Could not find tunnel URL in logs."
