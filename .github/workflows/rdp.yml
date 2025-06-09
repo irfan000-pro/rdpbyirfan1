@@ -1,0 +1,48 @@
+name: Persistent RDP with Cloudflare Tunnel
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *' # every 5 hours
+
+jobs:
+  run-rdp:
+    runs-on: windows-latest
+    steps:
+    - name: Download cloudflared
+      run: |
+        Invoke-WebRequest -Uri https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+
+    - name: Enable and start Remote Desktop service
+      run: |
+        Set-Service -Name TermService -StartupType Automatic
+        Start-Service TermService
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+    - name: Create new user "rdpuser"
+      env:
+        PASSWORD: ${{ secrets.RDP_PASSWORD }}
+      run: |
+        net user rdpuser $Env:PASSWORD /add
+        net localgroup administrators rdpuser /add
+
+    - name: Start Cloudflare Tunnel
+      env:
+        TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+      run: |
+        Start-Process -NoNewWindow -FilePath .\cloudflared.exe -ArgumentList "tunnel --no-autoupdate --protocol tcp run --token $Env:TUNNEL_TOKEN --url tcp://localhost:3389" -PassThru | Out-Null
+        Start-Sleep -Seconds 10
+        $log = .\cloudflared.exe tunnel --no-autoupdate --protocol tcp run --token $Env:TUNNEL_TOKEN --url tcp://localhost:3389 --loglevel info 2>&1
+        $matches = Select-String -InputObject $log -Pattern 'tcp://(.+):(\d+)'
+        if ($matches) {
+          Write-Host "===================="
+          Write-Host "RDP Public Endpoint:"
+          Write-Host $matches.Matches.Groups[0].Value
+          Write-Host "Username: rdpuser"
+          Write-Host "Password: (your secret)"
+          Write-Host "===================="
+        } else {
+          Write-Host "Could not find tunnel URL in logs."
+        }
+        Start-Sleep -Seconds 3600
